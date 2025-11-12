@@ -30,13 +30,14 @@ public class JwtService : IJwtService
         var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? "ShopAPIClient";
 
         var (signingKey, kid) = await _keyRotationService.GetCurrentSigningKeyAsync();
-        var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
+        var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.RsaSha256);
 
         var jti = Guid.NewGuid().ToString();
 
         var claims = new[]
         {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(JwtRegisteredClaimNames.Email, user.Email),
             new Claim(ClaimTypes.Role, user.Role.ToString()),
             new Claim("provider", user.Provider ?? "local"),

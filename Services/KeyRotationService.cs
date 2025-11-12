@@ -11,7 +11,6 @@ public class KeyRotationService : IKeyRotationService
     private readonly ILogger<KeyRotationService> _logger;
     private const string CURRENT_KID_KEY = "jwt:current_kid";
     private const string KEY_PREFIX = "jwt:key:";
-    private static readonly TimeSpan KEY_EXPIRY = TimeSpan.FromDays(30);
 
     public KeyRotationService(ICacheService cacheService, ILogger<KeyRotationService> logger)
     {
@@ -22,31 +21,33 @@ public class KeyRotationService : IKeyRotationService
     public async Task<(SecurityKey Key, string Kid)> GetCurrentSigningKeyAsync()
     {
         var currentKid = await _cacheService.GetAsync<string>(CURRENT_KID_KEY);
-        
+
         if (currentKid == null)
         {
             return await CreateNewKeyAsync();
         }
 
-        var keyData = await _cacheService.GetAsync<string>($"{KEY_PREFIX}{currentKid}");
-        
-        if (keyData == null)
+        var material = await _cacheService.GetAsync<RsaKeyMaterial>($"{KEY_PREFIX}{currentKid}");
+
+        if (material == null)
         {
             return await CreateNewKeyAsync();
         }
 
-        var key = new SymmetricSecurityKey(Convert.FromBase64String(keyData));
+        var key = CreatePrivateKey(material, currentKid);
         return (key, currentKid);
     }
 
     public async Task<SecurityKey?> GetKeyByKidAsync(string kid)
     {
-        var keyData = await _cacheService.GetAsync<string>($"{KEY_PREFIX}{kid}");
-        
-        if (keyData == null)
+        var material = await _cacheService.GetAsync<RsaKeyMaterial>($"{KEY_PREFIX}{kid}");
+
+        if (material == null)
             return null;
 
-        return new SymmetricSecurityKey(Convert.FromBase64String(keyData));
+        var rsa = RSA.Create();
+        rsa.ImportSubjectPublicKeyInfo(Convert.FromBase64String(material.PublicKey), out _);
+        return new RsaSecurityKey(rsa) { KeyId = kid };
     }
 
     public async Task RotateKeysAsync()
@@ -57,21 +58,33 @@ public class KeyRotationService : IKeyRotationService
 
     private async Task<(SecurityKey Key, string Kid)> CreateNewKeyAsync()
     {
-        var keyBytes = new byte[64];
-        using (var rng = RandomNumberGenerator.Create())
-        {
-            rng.GetBytes(keyBytes);
-        }
-
         var kid = Guid.NewGuid().ToString();
-        var keyData = Convert.ToBase64String(keyBytes);
-        
-        await _cacheService.SetAsync($"{KEY_PREFIX}{kid}", keyData, TimeSpan.FromDays(60));
+        using var rsa = RSA.Create(2048);
+        var material = new RsaKeyMaterial
+        {
+            PrivateKey = Convert.ToBase64String(rsa.ExportRSAPrivateKey()),
+            PublicKey = Convert.ToBase64String(rsa.ExportSubjectPublicKeyInfo())
+        };
+
+        await _cacheService.SetAsync($"{KEY_PREFIX}{kid}", material, TimeSpan.FromDays(60));
         await _cacheService.SetAsync(CURRENT_KID_KEY, kid, TimeSpan.FromDays(60));
-        
+
         _logger.LogInformation("New JWT signing key created with kid: {Kid}", kid);
-        
-        var key = new SymmetricSecurityKey(keyBytes);
+
+        var key = CreatePrivateKey(material, kid);
         return (key, kid);
+    }
+
+    private static SecurityKey CreatePrivateKey(RsaKeyMaterial material, string kid)
+    {
+        var rsa = RSA.Create();
+        rsa.ImportRSAPrivateKey(Convert.FromBase64String(material.PrivateKey), out _);
+        return new RsaSecurityKey(rsa) { KeyId = kid };
+    }
+
+    private record RsaKeyMaterial
+    {
+        public string PrivateKey { get; init; } = string.Empty;
+        public string PublicKey { get; init; } = string.Empty;
     }
 }

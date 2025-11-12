@@ -31,17 +31,70 @@ public class AuthController : ControllerBase
         }
     }
 
-    [HttpPost("verify-email")]
-    public async Task<IActionResult> VerifyEmail([FromBody] VerifyOtpRequest request)
+    [HttpGet("verify-email")]
+    public async Task<IActionResult> VerifyEmail([FromQuery] string token)
     {
         try
         {
-            var result = await _authService.VerifyEmailAsync(request);
-            
+            var result = await _authService.VerifyEmailFromTokenAsync(token);
+
             if (!result)
-                return BadRequest(new { message = "Invalid or expired OTP" });
+                return BadRequest(new { message = "Invalid or expired token" });
 
             return Ok(new { message = "Email verified successfully" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("request-otp")]
+    public async Task<IActionResult> RequestOtp([FromBody] RequestOtpRequest request)
+    {
+        try
+        {
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var envelope = await _authService.RequestCustomerOtpAsync(request, ipAddress);
+            return Ok(new { envelope.ExpiresAt });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("resend-otp")]
+    public async Task<IActionResult> ResendOtp([FromBody] ResendOtpRequest request)
+    {
+        try
+        {
+            var envelope = await _authService.ResendCustomerOtpAsync(request);
+            return Ok(new { envelope.ExpiresAt });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("verify-otp")]
+    public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest request)
+    {
+        try
+        {
+            var response = await _authService.VerifyCustomerOtpAsync(request);
+            SetRefreshTokenCookie(response.RefreshToken);
+            return Ok(new
+            {
+                response.AccessToken,
+                response.ExpiresAt,
+                response.User
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
         }
         catch (Exception ex)
         {

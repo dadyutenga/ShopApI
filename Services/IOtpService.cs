@@ -1,8 +1,12 @@
+using ShopApI.DTOs;
+using ShopApI.Models;
+
 namespace ShopApI.Services;
 
 public interface IOtpService
 {
-    Task<string> GenerateOtpAsync(string email);
-    Task<bool> ValidateOtpAsync(string email, string otp);
-    Task InvalidateOtpAsync(string email);
+    Task<OtpIssuanceResult> GenerateOtpAsync(User user, string ipAddress);
+    Task<OtpEnvelope?> ResendOtpAsync(User user);
+    Task<bool> ValidateOtpAsync(Guid userId, string otp);
+    Task ClearOtpStateAsync(Guid userId);
 }

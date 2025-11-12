@@ -1,6 +1,31 @@
 @ShopApI_HostAddress = http://localhost:5119
 
-GET {{ShopApI_HostAddress}}/weatherforecast/
+### Bootstrap status
+GET {{ShopApI_HostAddress}}/api/bootstrap/status
 Accept: application/json
 
-###
+### Complete bootstrap
+POST {{ShopApI_HostAddress}}/api/bootstrap/complete
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "ChangeMe123!"
+}
+
+### Request OTP
+POST {{ShopApI_HostAddress}}/api/auth/request-otp
+Content-Type: application/json
+
+{
+  "email": "customer@example.com"
+}
+
+### Verify OTP
+POST {{ShopApI_HostAddress}}/api/auth/verify-otp
+Content-Type: application/json
+
+{
+  "email": "customer@example.com",
+  "otp": "123456"
+}

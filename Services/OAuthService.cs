@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ShopApI.Data;
 using ShopApI.DTOs;
 using ShopApI.Events;
+using ShopApI.Helpers;
 using ShopApI.Models;
 using ShopApI.Enums;
 using System.Security.Claims;
@@ -11,26 +12,20 @@ namespace ShopApI.Services;
 public class OAuthService : IOAuthService
 {
     private readonly ApplicationDbContext _context;
-    private readonly IJwtService _jwtService;
     private readonly IEventPublisher _eventPublisher;
-    private readonly ICacheService _cacheService;
     private readonly ILogger<OAuthService> _logger;
 
     public OAuthService(
         ApplicationDbContext context,
-        IJwtService jwtService,
         IEventPublisher eventPublisher,
-        ICacheService cacheService,
         ILogger<OAuthService> logger)
     {
         _context = context;
-        _jwtService = jwtService;
         _eventPublisher = eventPublisher;
-        _cacheService = cacheService;
         _logger = logger;
     }
 
-    public async Task<AuthResponse> HandleOAuthCallbackAsync(string provider, ClaimsPrincipal principal)
+    public async Task<OAuthPendingResponse> HandleOAuthCallbackAsync(string provider, ClaimsPrincipal principal, string verificationBaseUrl)
     {
         var email = principal.FindFirstValue(ClaimTypes.Email);
         var providerId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -40,7 +35,7 @@ public class OAuthService : IOAuthService
             throw new InvalidOperationException("Invalid OAuth response");
         }
 
-        var user = await _context.Users.FirstOrDefaultAsync(u => 
+        var user = await _context.Users.Include(u => u.CustomerProfile).FirstOrDefaultAsync(u =>
             u.Email == email || (u.Provider == provider && u.ProviderId == providerId));
 
         if (user == null)
@@ -52,7 +47,13 @@ public class OAuthService : IOAuthService
                 ProviderId = providerId,
                 Role = UserRole.Customer,
                 IsActive = true,
-                EmailVerified = true
+                IsEmailVerified = false,
+                CustomerProfile = new CustomerProfile
+                {
+                    IsEmailVerified = false,
+                    IsPhoneVerified = false,
+                    TwoFactorEnabled = false
+                }
             };
 
             _context.Users.Add(user);
@@ -62,32 +63,41 @@ public class OAuthService : IOAuthService
             {
                 UserId = user.Id,
                 Email = user.Email,
-                Provider = provider
+                Role = user.Role.ToString(),
+                Provider = provider,
+                CorrelationId = Guid.NewGuid().ToString()
             });
         }
         else if (user.Provider != provider || user.ProviderId != providerId)
         {
             user.Provider = provider;
             user.ProviderId = providerId;
+            user.IsEmailVerified = false;
+            if (user.CustomerProfile == null)
+            {
+                user.CustomerProfile = new CustomerProfile();
+            }
             await _context.SaveChangesAsync();
         }
 
-        await _cacheService.SetAsync($"session:{user.Id}", new
+        var signingKey = Environment.GetEnvironmentVariable("EMAIL_VERIFICATION_SIGNING_KEY")
+            ?? throw new InvalidOperationException("EMAIL_VERIFICATION_SIGNING_KEY is not configured");
+
+        var token = EmailVerificationTokenHelper.Sign(
+            new EmailVerificationPayload(user.Id, provider, DateTimeOffset.UtcNow.AddHours(1)),
+            signingKey);
+
+        var link = $"{verificationBaseUrl}?token={Uri.EscapeDataString(token)}";
+
+        await _eventPublisher.PublishAsync(new EmailVerificationSentEvent
         {
-            user.Id,
-            user.Email,
-            Role = user.Role.ToString()
-        }, TimeSpan.FromMinutes(10));
+            UserId = user.Id,
+            Email = user.Email,
+            Provider = provider,
+            CorrelationId = Guid.NewGuid().ToString()
+        });
 
-        var accessToken = await _jwtService.GenerateAccessTokenAsync(user);
-        var refreshToken = _jwtService.GenerateRefreshToken();
-        await _jwtService.SaveRefreshTokenAsync(user.Id, refreshToken);
-
-        return new AuthResponse(
-            accessToken,
-            refreshToken,
-            DateTime.UtcNow.AddMinutes(10),
-            new UserDto(user.Id, user.Email, user.Role.ToString(), user.Provider, user.CreatedAt)
-        );
+        _logger.LogInformation("OAuth verification required for {Email}", MaskingHelper.MaskEmail(user.Email));
+        return new OAuthPendingResponse(user.Email, link);
     }
 }

@@ -14,6 +14,7 @@ using DotNetEnv;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using ShopApI.Validators;
+using System.Linq;
 
 Env.Load();
 
@@ -103,14 +104,14 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = jwtAudience,
         ClockSkew = TimeSpan.Zero
     };
-    
+
     options.Events = new JwtBearerEvents
     {
         OnTokenValidated = async context =>
         {
             var jwtService = context.HttpContext.RequestServices.GetRequiredService<IJwtService>();
             var jti = context.Principal?.FindFirst("jti")?.Value;
-            
+
             if (jti != null && await jwtService.IsTokenBlacklistedAsync(jti))
             {
                 context.Fail("Token has been revoked");
@@ -133,6 +134,20 @@ builder.Services.AddAuthentication(options =>
     options.ClientId = Environment.GetEnvironmentVariable("MICROSOFT_CLIENT_ID") ?? "";
     options.ClientSecret = Environment.GetEnvironmentVariable("MICROSOFT_CLIENT_SECRET") ?? "";
 });
+
+builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+    .Configure<IKeyRotationService>((options, keyRotation) =>
+    {
+        options.TokenValidationParameters.IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
+        {
+            var keyId = kid?.FirstOrDefault();
+            if (string.IsNullOrEmpty(keyId))
+                return Array.Empty<SecurityKey>();
+
+            var signingKey = keyRotation.GetKeyByKidAsync(keyId).GetAwaiter().GetResult();
+            return signingKey == null ? Array.Empty<SecurityKey>() : new[] { signingKey };
+        };
+    });
 
 builder.Services.AddAuthorization();
 
@@ -167,6 +182,11 @@ builder.Services.AddMassTransit(x =>
         cfg.Message<ShopApI.Events.UserRegisteredEvent>(e => e.SetEntityName("user.events"));
         cfg.Message<ShopApI.Events.UserUpdatedEvent>(e => e.SetEntityName("user.events"));
         cfg.Message<ShopApI.Events.UserDeactivatedEvent>(e => e.SetEntityName("user.events"));
+        cfg.Message<ShopApI.Events.UserRoleAssignedEvent>(e => e.SetEntityName("user.events"));
+        cfg.Message<ShopApI.Events.EmailVerificationSentEvent>(e => e.SetEntityName("user.events"));
+        cfg.Message<ShopApI.Events.EmailVerificationCompletedEvent>(e => e.SetEntityName("user.events"));
+        cfg.Message<ShopApI.Events.OtpGeneratedEvent>(e => e.SetEntityName("otp.events"));
+        cfg.Message<ShopApI.Events.OtpVerifiedEvent>(e => e.SetEntityName("otp.events"));
 
         cfg.ConfigureEndpoints(context);
     });
@@ -176,6 +196,8 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IOAuthService, OAuthService>();
 builder.Services.AddScoped<IOtpService, OtpService>();
+builder.Services.AddScoped<IBootstrapService, BootstrapService>();
+builder.Services.AddScoped<IAdminUserService, AdminUserService>();
 builder.Services.AddScoped<IEventPublisher, EventPublisher>();
 builder.Services.AddSingleton<IKeyRotationService, KeyRotationService>();
 
