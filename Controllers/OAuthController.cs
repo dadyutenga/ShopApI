@@ -31,15 +31,15 @@ public class OAuthController : ControllerBase
     }
 
     [HttpGet("google/callback")]
-    public async Task<ActionResult<AuthResponse>> GoogleCallback()
+    public async Task<IActionResult> GoogleCallback()
     {
         var authenticateResult = await HttpContext.AuthenticateAsync(GoogleDefaults.AuthenticationScheme);
-        
+
         if (!authenticateResult.Succeeded)
             return Unauthorized(new { message = "Google authentication failed" });
 
-        var response = await _oauthService.HandleOAuthCallbackAsync("google", authenticateResult.Principal);
-        return Ok(response);
+        var result = await _oauthService.HandleOAuthCallbackAsync("google", authenticateResult.Principal);
+        return BuildOAuthResponse(result);
     }
 
     [HttpGet("github")]
@@ -53,15 +53,15 @@ public class OAuthController : ControllerBase
     }
 
     [HttpGet("github/callback")]
-    public async Task<ActionResult<AuthResponse>> GitHubCallback()
+    public async Task<IActionResult> GitHubCallback()
     {
         var authenticateResult = await HttpContext.AuthenticateAsync("GitHub");
         
         if (!authenticateResult.Succeeded)
             return Unauthorized(new { message = "GitHub authentication failed" });
 
-        var response = await _oauthService.HandleOAuthCallbackAsync("github", authenticateResult.Principal);
-        return Ok(response);
+        var result = await _oauthService.HandleOAuthCallbackAsync("github", authenticateResult.Principal);
+        return BuildOAuthResponse(result);
     }
 
     [HttpGet("microsoft")]
@@ -75,14 +75,28 @@ public class OAuthController : ControllerBase
     }
 
     [HttpGet("microsoft/callback")]
-    public async Task<ActionResult<AuthResponse>> MicrosoftCallback()
+    public async Task<IActionResult> MicrosoftCallback()
     {
         var authenticateResult = await HttpContext.AuthenticateAsync(MicrosoftAccountDefaults.AuthenticationScheme);
         
         if (!authenticateResult.Succeeded)
             return Unauthorized(new { message = "Microsoft authentication failed" });
 
-        var response = await _oauthService.HandleOAuthCallbackAsync("microsoft", authenticateResult.Principal);
-        return Ok(response);
+        var result = await _oauthService.HandleOAuthCallbackAsync("microsoft", authenticateResult.Principal);
+        return BuildOAuthResponse(result);
+    }
+
+    private IActionResult BuildOAuthResponse(OAuthCallbackResult result)
+    {
+        if (result.RequiresVerification)
+        {
+            return Accepted(new
+            {
+                message = "Email verification required",
+                verificationLink = result.VerificationLink
+            });
+        }
+
+        return Ok(result.AuthResponse);
     }
 }

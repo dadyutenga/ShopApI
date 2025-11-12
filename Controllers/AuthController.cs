@@ -31,8 +31,8 @@ public class AuthController : ControllerBase
         }
     }
 
-    [HttpPost("verify-email")]
-    public async Task<IActionResult> VerifyEmail([FromBody] VerifyOtpRequest request)
+    [HttpPost("verify-email/otp")]
+    public async Task<IActionResult> VerifyEmailOtp([FromBody] VerifyOtpRequest request)
     {
         try
         {
@@ -47,6 +47,18 @@ public class AuthController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+    }
+
+    [HttpGet("verify-email")]
+    public async Task<IActionResult> VerifyEmailLink([FromQuery] string token)
+    {
+        var verified = await _authService.VerifyEmailLinkAsync(token);
+        if (!verified)
+        {
+            return BadRequest(new { message = "Invalid or expired verification link" });
+        }
+
+        return Ok(new { message = "Email verified successfully" });
     }
 
     [HttpPost("login")]
@@ -68,6 +80,62 @@ public class AuthController : ControllerBase
         catch (UnauthorizedAccessException ex)
         {
             return Unauthorized(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("request-otp")]
+    public async Task<IActionResult> RequestOtp([FromBody] OtpRequest request)
+    {
+        try
+        {
+            var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            await _authService.RequestCustomerOtpAsync(request, ip);
+            return Accepted(new { message = "OTP generated" });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("resend-otp")]
+    public async Task<IActionResult> ResendOtp([FromBody] OtpRequest request)
+    {
+        try
+        {
+            await _authService.ResendCustomerOtpAsync(request);
+            return Accepted(new { message = "OTP refreshed" });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("verify-otp")]
+    public async Task<ActionResult<AuthResponse>> VerifyOtp([FromBody] OtpVerifyRequest request)
+    {
+        try
+        {
+            var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var response = await _authService.VerifyCustomerOtpAsync(request, ip);
+
+            SetRefreshTokenCookie(response.RefreshToken);
+
+            return Ok(new
+            {
+                response.AccessToken,
+                response.ExpiresAt,
+                response.User
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
     }
 

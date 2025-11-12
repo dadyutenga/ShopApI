@@ -5,5 +5,5 @@ namespace ShopApI.Services;
 
 public interface IOAuthService
 {
-    Task<AuthResponse> HandleOAuthCallbackAsync(string provider, ClaimsPrincipal principal);
+    Task<OAuthCallbackResult> HandleOAuthCallbackAsync(string provider, ClaimsPrincipal principal);
 }

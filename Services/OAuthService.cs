@@ -14,6 +14,7 @@ public class OAuthService : IOAuthService
     private readonly IJwtService _jwtService;
     private readonly IEventPublisher _eventPublisher;
     private readonly ICacheService _cacheService;
+    private readonly IEmailVerificationService _emailVerificationService;
     private readonly ILogger<OAuthService> _logger;
 
     public OAuthService(
@@ -21,16 +22,18 @@ public class OAuthService : IOAuthService
         IJwtService jwtService,
         IEventPublisher eventPublisher,
         ICacheService cacheService,
+        IEmailVerificationService emailVerificationService,
         ILogger<OAuthService> logger)
     {
         _context = context;
         _jwtService = jwtService;
         _eventPublisher = eventPublisher;
         _cacheService = cacheService;
+        _emailVerificationService = emailVerificationService;
         _logger = logger;
     }
 
-    public async Task<AuthResponse> HandleOAuthCallbackAsync(string provider, ClaimsPrincipal principal)
+    public async Task<OAuthCallbackResult> HandleOAuthCallbackAsync(string provider, ClaimsPrincipal principal)
     {
         var email = principal.FindFirstValue(ClaimTypes.Email);
         var providerId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -40,21 +43,20 @@ public class OAuthService : IOAuthService
             throw new InvalidOperationException("Invalid OAuth response");
         }
 
-        var user = await _context.Users.FirstOrDefaultAsync(u => 
+        var user = await _context.Users.FirstOrDefaultAsync(u =>
             u.Email == email || (u.Provider == provider && u.ProviderId == providerId));
 
         if (user == null)
         {
             user = new User
             {
-                Email = email,
+                Email = email.ToLowerInvariant(),
                 Provider = provider,
                 ProviderId = providerId,
                 Role = UserRole.Customer,
                 IsActive = true,
-                EmailVerified = true
+                IsEmailVerified = false
             };
-
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
@@ -62,7 +64,9 @@ public class OAuthService : IOAuthService
             {
                 UserId = user.Id,
                 Email = user.Email,
-                Provider = provider
+                Role = user.Role.ToString(),
+                Provider = provider,
+                CorrelationId = Guid.NewGuid().ToString()
             });
         }
         else if (user.Provider != provider || user.ProviderId != providerId)
@@ -70,6 +74,23 @@ public class OAuthService : IOAuthService
             user.Provider = provider;
             user.ProviderId = providerId;
             await _context.SaveChangesAsync();
+        }
+
+        if (!user.IsEmailVerified)
+        {
+            var token = _emailVerificationService.IssueToken(user, TimeSpan.FromHours(2));
+            var verificationLink = $"/api/auth/verify-email?token={token}";
+
+            await _eventPublisher.PublishAsync(new EmailVerificationEvent
+            {
+                UserId = user.Id,
+                Email = user.Email,
+                Type = "oauth_link",
+                Completed = false,
+                CorrelationId = Guid.NewGuid().ToString()
+            });
+
+            return new OAuthCallbackResult(true, verificationLink, null);
         }
 
         await _cacheService.SetAsync($"session:{user.Id}", new
@@ -83,11 +104,10 @@ public class OAuthService : IOAuthService
         var refreshToken = _jwtService.GenerateRefreshToken();
         await _jwtService.SaveRefreshTokenAsync(user.Id, refreshToken);
 
-        return new AuthResponse(
+        return new OAuthCallbackResult(false, null, new AuthResponse(
             accessToken,
             refreshToken,
             DateTime.UtcNow.AddMinutes(10),
-            new UserDto(user.Id, user.Email, user.Role.ToString(), user.Provider, user.CreatedAt)
-        );
+            new UserDto(user.Id, user.Email, user.Role.ToString(), user.Provider, user.CreatedAt, user.IsActive, user.IsEmailVerified, user.IsPhoneVerified, user.TwoFactorEnabled)));
     }
 }

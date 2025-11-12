@@ -153,8 +153,11 @@ var rabbitPassword = Environment.GetEnvironmentVariable("RABBITMQ_PASSWORD") ?? 
 builder.Services.AddMassTransit(x =>
 {
     x.AddConsumer<UserRegisteredConsumer>();
-    x.AddConsumer<UserUpdatedConsumer>();
-    x.AddConsumer<UserDeactivatedConsumer>();
+    x.AddConsumer<UserRoleAssignedConsumer>();
+    x.AddConsumer<UserStatusChangedConsumer>();
+    x.AddConsumer<OtpGeneratedConsumer>();
+    x.AddConsumer<OtpVerifiedConsumer>();
+    x.AddConsumer<EmailVerificationEventConsumer>();
 
     x.UsingRabbitMq((context, cfg) =>
     {
@@ -165,8 +168,16 @@ builder.Services.AddMassTransit(x =>
         });
 
         cfg.Message<ShopApI.Events.UserRegisteredEvent>(e => e.SetEntityName("user.events"));
-        cfg.Message<ShopApI.Events.UserUpdatedEvent>(e => e.SetEntityName("user.events"));
-        cfg.Message<ShopApI.Events.UserDeactivatedEvent>(e => e.SetEntityName("user.events"));
+        cfg.Message<ShopApI.Events.UserRoleAssignedEvent>(e => e.SetEntityName("user.events"));
+        cfg.Message<ShopApI.Events.UserStatusChangedEvent>(e => e.SetEntityName("user.events"));
+        cfg.Message<ShopApI.Events.UserDeletedEvent>(e => e.SetEntityName("user.events"));
+        cfg.Message<ShopApI.Events.EmailVerificationEvent>(e => e.SetEntityName("user.events"));
+        cfg.Message<ShopApI.Events.OtpGeneratedEvent>(e => e.SetEntityName("otp.events"));
+        cfg.Message<ShopApI.Events.OtpVerifiedEvent>(e => e.SetEntityName("otp.events"));
+
+        cfg.Publish<ShopApI.Events.UserRegisteredEvent>(p => p.Durable = true);
+        cfg.Publish<ShopApI.Events.OtpGeneratedEvent>(p => p.Durable = true);
+        cfg.Publish<ShopApI.Events.OtpVerifiedEvent>(p => p.Durable = true);
 
         cfg.ConfigureEndpoints(context);
     });
@@ -178,6 +189,9 @@ builder.Services.AddScoped<IOAuthService, OAuthService>();
 builder.Services.AddScoped<IOtpService, OtpService>();
 builder.Services.AddScoped<IEventPublisher, EventPublisher>();
 builder.Services.AddSingleton<IKeyRotationService, KeyRotationService>();
+builder.Services.AddScoped<IBootstrapService, BootstrapService>();
+builder.Services.AddScoped<IAdminUserService, AdminUserService>();
+builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>();
 
 var corsOrigins = Environment.GetEnvironmentVariable("CORS_ORIGINS")?.Split(',') ?? new[] { "http://localhost:3000" };
 

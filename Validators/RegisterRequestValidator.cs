@@ -23,5 +23,9 @@ public class RegisterRequestValidator : AbstractValidator<RegisterRequest>
 
         RuleFor(x => x.Role)
             .IsInEnum();
+
+        RuleFor(x => x.PhoneNumber)
+            .MaximumLength(20)
+            .Matches(@"^[0-9+\-() ]*$").When(x => !string.IsNullOrEmpty(x.PhoneNumber));
     }
 }
