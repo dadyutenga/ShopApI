@@ -25,8 +25,8 @@ public class RequestLoggingMiddleware
         using (LogContext.PushProperty("CorrelationId", correlationId))
         using (LogContext.PushProperty("UserId", userId))
         {
-            context.Response.Headers.Add("X-Request-ID", requestId);
-            context.Response.Headers.Add("X-Correlation-ID", correlationId);
+            context.Response.Headers["X-Request-ID"] = requestId;
+            context.Response.Headers["X-Correlation-ID"] = correlationId;
 
             _logger.LogInformation("HTTP {Method} {Path} started", context.Request.Method, context.Request.Path);
 

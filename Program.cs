@@ -4,7 +4,6 @@ using Microsoft.IdentityModel.Tokens;
 using ShopApI.Data;
 using ShopApI.Middleware;
 using ShopApI.Services;
-using ShopApI.Repositories;
 using ShopApI.Consumers;
 using System.Text;
 using Serilog;
@@ -150,8 +149,6 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IOAuthService, OAuthService>();
 builder.Services.AddScoped<IEventPublisher, EventPublisher>();
-builder.Services.AddScoped<IProductService, ProductService>();
-builder.Services.AddScoped<IProductRepository, ProductRepository>();
 
 // Add CORS
 builder.Services.AddCors(options =>

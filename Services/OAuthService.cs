@@ -43,8 +43,6 @@ public class OAuthService : IOAuthService
         var user = await _context.Users.FirstOrDefaultAsync(u => 
             u.Email == email || (u.Provider == provider && u.ProviderId == providerId));
 
-        bool isNewUser = false;
-
         if (user == null)
         {
             // Create new user
@@ -60,10 +58,6 @@ public class OAuthService : IOAuthService
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            isNewUser = true;
-            _logger.LogInformation("New OAuth user created: {Email} via {Provider}", email, provider);
-
-            // Publish user.registered event
             await _eventPublisher.PublishAsync(new UserRegisteredEvent
             {
                 UserId = user.Id,
@@ -77,8 +71,6 @@ public class OAuthService : IOAuthService
             user.Provider = provider;
             user.ProviderId = providerId;
             await _context.SaveChangesAsync();
-
-            _logger.LogInformation("OAuth account linked: {Email} via {Provider}", email, provider);
         }
 
         // Cache user session
