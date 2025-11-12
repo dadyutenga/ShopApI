@@ -11,6 +11,9 @@ using StackExchange.Redis;
 using MassTransit;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using DotNetEnv;
+
+Env.Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -69,12 +72,21 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 // Database Context
+var dbHost = Environment.GetEnvironmentVariable("DB_HOST") ?? "localhost";
+var dbPort = Environment.GetEnvironmentVariable("DB_PORT") ?? "3306";
+var dbName = Environment.GetEnvironmentVariable("DB_NAME") ?? "ShopDB";
+var dbUser = Environment.GetEnvironmentVariable("DB_USER") ?? "root";
+var dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "";
+var connectionString = $"Server={dbHost};Port={dbPort};Database={dbName};User={dbUser};Password={dbPassword};";
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseMySql(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        ServerVersion.AutoDetect(builder.Configuration.GetConnectionString("DefaultConnection")!)));
+    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 
 // JWT Authentication
+var jwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET_KEY") ?? "YourSuperSecretKeyThatIsAtLeast32CharactersLong!";
+var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER") ?? "ShopAPI";
+var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? "ShopAPIClient";
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -88,40 +100,46 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"],
-        ValidAudience = builder.Configuration["Jwt:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(builder.Configuration["Jwt:SecretKey"]!)),
+        ValidIssuer = jwtIssuer,
+        ValidAudience = jwtAudience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
         ClockSkew = TimeSpan.Zero
     };
 })
 .AddGoogle(options =>
 {
-    options.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;
-    options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]!;
+    options.ClientId = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID") ?? "";
+    options.ClientSecret = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET") ?? "";
 })
 .AddGitHub(options =>
 {
-    options.ClientId = builder.Configuration["Authentication:GitHub:ClientId"]!;
-    options.ClientSecret = builder.Configuration["Authentication:GitHub:ClientSecret"]!;
+    options.ClientId = Environment.GetEnvironmentVariable("GITHUB_CLIENT_ID") ?? "";
+    options.ClientSecret = Environment.GetEnvironmentVariable("GITHUB_CLIENT_SECRET") ?? "";
 })
 .AddMicrosoftAccount(options =>
 {
-    options.ClientId = builder.Configuration["Authentication:Microsoft:ClientId"]!;
-    options.ClientSecret = builder.Configuration["Authentication:Microsoft:ClientSecret"]!;
+    options.ClientId = Environment.GetEnvironmentVariable("MICROSOFT_CLIENT_ID") ?? "";
+    options.ClientSecret = Environment.GetEnvironmentVariable("MICROSOFT_CLIENT_SECRET") ?? "";
 });
 
 builder.Services.AddAuthorization();
 
 // Redis
+var redisHost = Environment.GetEnvironmentVariable("REDIS_HOST") ?? "localhost";
+var redisPort = Environment.GetEnvironmentVariable("REDIS_PORT") ?? "6379";
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 {
-    var configuration = ConfigurationOptions.Parse(builder.Configuration["Redis:ConnectionString"]!);
+    var configuration = ConfigurationOptions.Parse($"{redisHost}:{redisPort}");
     return ConnectionMultiplexer.Connect(configuration);
 });
 builder.Services.AddSingleton<ICacheService, RedisCacheService>();
 
 // MassTransit with RabbitMQ
+var rabbitHost = Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "localhost";
+var rabbitVHost = Environment.GetEnvironmentVariable("RABBITMQ_VHOST") ?? "/";
+var rabbitUser = Environment.GetEnvironmentVariable("RABBITMQ_USER") ?? "guest";
+var rabbitPassword = Environment.GetEnvironmentVariable("RABBITMQ_PASSWORD") ?? "guest";
+
 builder.Services.AddMassTransit(x =>
 {
     x.AddConsumer<UserRegisteredConsumer>();
@@ -130,10 +148,10 @@ builder.Services.AddMassTransit(x =>
 
     x.UsingRabbitMq((context, cfg) =>
     {
-        cfg.Host(builder.Configuration["RabbitMQ:Host"], builder.Configuration["RabbitMQ:VirtualHost"], h =>
+        cfg.Host(rabbitHost, rabbitVHost, h =>
         {
-            h.Username(builder.Configuration["RabbitMQ:Username"]!);
-            h.Password(builder.Configuration["RabbitMQ:Password"]!);
+            h.Username(rabbitUser);
+            h.Password(rabbitPassword);
         });
 
         cfg.Message<ShopApI.Events.UserRegisteredEvent>(e => e.SetEntityName("user.events"));

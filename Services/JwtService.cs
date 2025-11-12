@@ -11,24 +11,24 @@ namespace ShopApI.Services;
 
 public class JwtService : IJwtService
 {
-    private readonly IConfiguration _configuration;
     private readonly ApplicationDbContext _context;
     private readonly ILogger<JwtService> _logger;
 
     public JwtService(
-        IConfiguration configuration,
         ApplicationDbContext context,
         ILogger<JwtService> logger)
     {
-        _configuration = configuration;
         _context = context;
         _logger = logger;
     }
 
     public string GenerateAccessToken(User user)
     {
-        var securityKey = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(_configuration["Jwt:SecretKey"]!));
+        var jwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET_KEY") ?? "YourSuperSecretKeyThatIsAtLeast32CharactersLong!";
+        var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER") ?? "ShopAPI";
+        var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? "ShopAPIClient";
+
+        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret));
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
         var claims = new[]
@@ -41,8 +41,8 @@ public class JwtService : IJwtService
         };
 
         var token = new JwtSecurityToken(
-            issuer: _configuration["Jwt:Issuer"],
-            audience: _configuration["Jwt:Audience"],
+            issuer: jwtIssuer,
+            audience: jwtAudience,
             claims: claims,
             expires: DateTime.UtcNow.AddMinutes(15),
             signingCredentials: credentials
@@ -62,7 +62,10 @@ public class JwtService : IJwtService
     public ClaimsPrincipal? ValidateToken(string token)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
-        var key = Encoding.UTF8.GetBytes(_configuration["Jwt:SecretKey"]!);
+        var jwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET_KEY") ?? "YourSuperSecretKeyThatIsAtLeast32CharactersLong!";
+        var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER") ?? "ShopAPI";
+        var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? "ShopAPIClient";
+        var key = Encoding.UTF8.GetBytes(jwtSecret);
 
         try
         {
@@ -71,9 +74,9 @@ public class JwtService : IJwtService
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKey = new SymmetricSecurityKey(key),
                 ValidateIssuer = true,
-                ValidIssuer = _configuration["Jwt:Issuer"],
+                ValidIssuer = jwtIssuer,
                 ValidateAudience = true,
-                ValidAudience = _configuration["Jwt:Audience"],
+                ValidAudience = jwtAudience,
                 ValidateLifetime = false,
                 ClockSkew = TimeSpan.Zero
             }, out _);
