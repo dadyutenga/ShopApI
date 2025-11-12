@@ -13,7 +13,17 @@ Content-Type: application/json
 
 {
   "email": "test@example.com",
-  "password": "SecurePassword123!"
+  "password": "SecurePassword123!",
+  "role": 0
+}
+
+### Verify Email OTP
+POST {{baseUrl}}/api/auth/verify-email
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "otp": "123456"
 }
 
 ### Login
@@ -27,11 +37,9 @@ Content-Type: application/json
 
 ### Refresh Token
 POST {{baseUrl}}/api/auth/refresh
-Content-Type: application/json
 
-{
-  "refreshToken": "{{refreshToken}}"
-}
+### Logout
+POST {{baseUrl}}/api/auth/logout
 
 ###############################################
 # USER MANAGEMENT (Protected Routes)
