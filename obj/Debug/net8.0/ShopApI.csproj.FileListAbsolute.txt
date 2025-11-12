@@ -149,3 +149,5 @@ D:\projects\ShopApI\obj\Debug\net8.0\ShopApI.genruntimeconfig.cache
 D:\projects\ShopApI\obj\Debug\net8.0\ref\ShopApI.dll
 D:\projects\ShopApI\bin\Debug\net8.0\MySqlConnector.dll
 D:\projects\ShopApI\bin\Debug\net8.0\Pomelo.EntityFrameworkCore.MySql.dll
+D:\projects\ShopApI\bin\Debug\net8.0\DotNetEnv.dll
+D:\projects\ShopApI\bin\Debug\net8.0\Sprache.dll
