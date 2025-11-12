@@ -1,0 +1,89 @@
+@baseUrl = http://localhost:5000
+# After login/register, copy the tokens here:
+@accessToken = your-access-token-here
+@refreshToken = your-refresh-token-here
+
+###############################################
+# AUTHENTICATION
+###############################################
+
+### Register New User
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "SecurePassword123!"
+}
+
+### Login
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "SecurePassword123!"
+}
+
+### Refresh Token
+POST {{baseUrl}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+###############################################
+# USER MANAGEMENT (Protected Routes)
+###############################################
+
+### Get Current User
+GET {{baseUrl}}/api/users/me
+Authorization: Bearer {{accessToken}}
+
+### Update Profile (Email Only)
+PUT {{baseUrl}}/api/users/me
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "email": "newemail@example.com"
+}
+
+### Update Profile (Password Only)
+PUT {{baseUrl}}/api/users/me
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "currentPassword": "SecurePassword123!",
+  "newPassword": "NewPassword456!"
+}
+
+### Update Profile (Both Email and Password)
+PUT {{baseUrl}}/api/users/me
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "email": "updated@example.com",
+  "currentPassword": "SecurePassword123!",
+  "newPassword": "NewPassword456!"
+}
+
+### Deactivate Account (Soft Delete)
+DELETE {{baseUrl}}/api/users/me
+Authorization: Bearer {{accessToken}}
+
+###############################################
+# OAUTH (Open in browser)
+###############################################
+
+### Google OAuth Login
+GET {{baseUrl}}/api/oauth/google
+
+### GitHub OAuth Login
+GET {{baseUrl}}/api/oauth/github
+
+### Microsoft OAuth Login
+GET {{baseUrl}}/api/oauth/microsoft

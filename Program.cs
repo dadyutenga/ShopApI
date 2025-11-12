@@ -5,19 +5,20 @@ using ShopApI.Data;
 using ShopApI.Middleware;
 using ShopApI.Services;
 using ShopApI.Consumers;
-using System.Text;
 using Serilog;
 using StackExchange.Redis;
 using MassTransit;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using DotNetEnv;
+using FluentValidation;
+using FluentValidation.AspNetCore;
+using ShopApI.Validators;
 
 Env.Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Serilog
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
     .Enrich.FromLogContext()
@@ -29,7 +30,6 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
-// OpenTelemetry
 builder.Services.AddOpenTelemetry()
     .WithTracing(tracerProviderBuilder =>
     {
@@ -41,7 +41,6 @@ builder.Services.AddOpenTelemetry()
             .AddConsoleExporter();
     });
 
-// Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -71,7 +70,9 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// Database Context
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddValidatorsFromAssemblyContaining<RegisterRequestValidator>();
+
 var dbHost = Environment.GetEnvironmentVariable("DB_HOST") ?? "localhost";
 var dbPort = Environment.GetEnvironmentVariable("DB_PORT") ?? "3306";
 var dbName = Environment.GetEnvironmentVariable("DB_NAME") ?? "ShopDB";
@@ -82,8 +83,6 @@ var connectionString = $"Server={dbHost};Port={dbPort};Database={dbName};User={d
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 
-// JWT Authentication
-var jwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET_KEY") ?? "YourSuperSecretKeyThatIsAtLeast32CharactersLong!";
 var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER") ?? "ShopAPI";
 var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? "ShopAPIClient";
 
@@ -102,8 +101,21 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         ValidIssuer = jwtIssuer,
         ValidAudience = jwtAudience,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
         ClockSkew = TimeSpan.Zero
+    };
+    
+    options.Events = new JwtBearerEvents
+    {
+        OnTokenValidated = async context =>
+        {
+            var jwtService = context.HttpContext.RequestServices.GetRequiredService<IJwtService>();
+            var jti = context.Principal?.FindFirst("jti")?.Value;
+            
+            if (jti != null && await jwtService.IsTokenBlacklistedAsync(jti))
+            {
+                context.Fail("Token has been revoked");
+            }
+        }
     };
 })
 .AddGoogle(options =>
@@ -124,7 +136,6 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
-// Redis
 var redisHost = Environment.GetEnvironmentVariable("REDIS_HOST") ?? "localhost";
 var redisPort = Environment.GetEnvironmentVariable("REDIS_PORT") ?? "6379";
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
@@ -134,7 +145,6 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 });
 builder.Services.AddSingleton<ICacheService, RedisCacheService>();
 
-// MassTransit with RabbitMQ
 var rabbitHost = Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "localhost";
 var rabbitVHost = Environment.GetEnvironmentVariable("RABBITMQ_VHOST") ?? "/";
 var rabbitUser = Environment.GetEnvironmentVariable("RABBITMQ_USER") ?? "guest";
@@ -162,40 +172,42 @@ builder.Services.AddMassTransit(x =>
     });
 });
 
-// Register application services
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IOAuthService, OAuthService>();
+builder.Services.AddScoped<IOtpService, OtpService>();
 builder.Services.AddScoped<IEventPublisher, EventPublisher>();
+builder.Services.AddSingleton<IKeyRotationService, KeyRotationService>();
 
-// Add CORS
+var corsOrigins = Environment.GetEnvironmentVariable("CORS_ORIGINS")?.Split(',') ?? new[] { "http://localhost:3000" };
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("RestrictedCors", policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        policy.WithOrigins(corsOrigins)
+              .WithMethods("GET", "POST", "PUT", "DELETE")
+              .WithHeaders("Content-Type", "Authorization")
+              .AllowCredentials();
     });
 });
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-// Add custom middleware
+app.UseMiddleware<BodySizeLimitMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseMiddleware<RateLimitMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseHttpsRedirection();
 
-app.UseCors("AllowAll");
+app.UseCors("RestrictedCors");
 
 app.UseAuthentication();
 app.UseAuthorization();

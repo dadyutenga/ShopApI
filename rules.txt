@@ -8,3 +8,4 @@ Rules for Agents:
 6. Update rules as needed based on project requirements.
 7. No creation of summary documents.
 8. No comments in the code.
+9.  just  create  the  files  in  the  behalf  of  the  user

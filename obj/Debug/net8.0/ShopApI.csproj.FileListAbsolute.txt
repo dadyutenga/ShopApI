@@ -151,3 +151,7 @@ D:\projects\ShopApI\bin\Debug\net8.0\MySqlConnector.dll
 D:\projects\ShopApI\bin\Debug\net8.0\Pomelo.EntityFrameworkCore.MySql.dll
 D:\projects\ShopApI\bin\Debug\net8.0\DotNetEnv.dll
 D:\projects\ShopApI\bin\Debug\net8.0\Sprache.dll
+D:\projects\ShopApI\bin\Debug\net8.0\ShopAPI.postman_collection.json
+D:\projects\ShopApI\bin\Debug\net8.0\FluentValidation.dll
+D:\projects\ShopApI\bin\Debug\net8.0\FluentValidation.AspNetCore.dll
+D:\projects\ShopApI\bin\Debug\net8.0\FluentValidation.DependencyInjectionExtensions.dll

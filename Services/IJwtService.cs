@@ -5,10 +5,12 @@ namespace ShopApI.Services;
 
 public interface IJwtService
 {
-    string GenerateAccessToken(User user);
+    Task<string> GenerateAccessTokenAsync(User user);
     string GenerateRefreshToken();
     ClaimsPrincipal? ValidateToken(string token);
-    Task<RefreshToken> SaveRefreshTokenAsync(Guid userId, string token);
-    Task<RefreshToken?> ValidateRefreshTokenAsync(string token);
+    Task SaveRefreshTokenAsync(Guid userId, string token);
+    Task<string?> ValidateRefreshTokenAsync(string token);
     Task RevokeRefreshTokenAsync(string token);
+    Task BlacklistTokenAsync(string jti, TimeSpan expiry);
+    Task<bool> IsTokenBlacklistedAsync(string jti);
 }

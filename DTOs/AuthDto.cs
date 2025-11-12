@@ -1,9 +1,16 @@
+using ShopApI.Enums;
+
 namespace ShopApI.DTOs;
 
 public record RegisterRequest(
     string Email,
     string Password,
-    string? FullName = null
+    UserRole Role = UserRole.Customer
+);
+
+public record VerifyOtpRequest(
+    string Email,
+    string Otp
 );
 
 public record LoginRequest(
@@ -20,6 +27,11 @@ public record AuthResponse(
     string RefreshToken,
     DateTime ExpiresAt,
     UserDto User
+);
+
+public record RegisterResponse(
+    string Message,
+    string Email
 );
 
 public record UserDto(

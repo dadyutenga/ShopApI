@@ -3,6 +3,7 @@ using ShopApI.Data;
 using ShopApI.DTOs;
 using ShopApI.Events;
 using ShopApI.Models;
+using ShopApI.Enums;
 using System.Security.Claims;
 
 namespace ShopApI.Services;
@@ -39,20 +40,19 @@ public class OAuthService : IOAuthService
             throw new InvalidOperationException("Invalid OAuth response");
         }
 
-        // Check if user exists
         var user = await _context.Users.FirstOrDefaultAsync(u => 
             u.Email == email || (u.Provider == provider && u.ProviderId == providerId));
 
         if (user == null)
         {
-            // Create new user
             user = new User
             {
                 Email = email,
                 Provider = provider,
                 ProviderId = providerId,
-                Role = "Customer",
-                IsActive = true
+                Role = UserRole.Customer,
+                IsActive = true,
+                EmailVerified = true
             };
 
             _context.Users.Add(user);
@@ -67,30 +67,27 @@ public class OAuthService : IOAuthService
         }
         else if (user.Provider != provider || user.ProviderId != providerId)
         {
-            // Link OAuth account
             user.Provider = provider;
             user.ProviderId = providerId;
             await _context.SaveChangesAsync();
         }
 
-        // Cache user session
         await _cacheService.SetAsync($"session:{user.Id}", new
         {
             user.Id,
             user.Email,
-            user.Role
-        }, TimeSpan.FromMinutes(15));
+            Role = user.Role.ToString()
+        }, TimeSpan.FromMinutes(10));
 
-        // Generate JWT tokens
-        var accessToken = _jwtService.GenerateAccessToken(user);
+        var accessToken = await _jwtService.GenerateAccessTokenAsync(user);
         var refreshToken = _jwtService.GenerateRefreshToken();
         await _jwtService.SaveRefreshTokenAsync(user.Id, refreshToken);
 
         return new AuthResponse(
             accessToken,
             refreshToken,
-            DateTime.UtcNow.AddMinutes(15),
-            new UserDto(user.Id, user.Email, user.Role, user.Provider, user.CreatedAt)
+            DateTime.UtcNow.AddMinutes(10),
+            new UserDto(user.Id, user.Email, user.Role.ToString(), user.Provider, user.CreatedAt)
         );
     }
 }
