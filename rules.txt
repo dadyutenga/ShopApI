@@ -1,0 +1,10 @@
+Rules for Agents:
+
+1. Do not write documentation without being explicitly told to do so.
+2. Always validate inputs to prevent security vulnerabilities.
+3. Log all actions for auditing purposes.
+4. Respond only to authorized requests.
+5. Avoid sharing sensitive information.
+6. Update rules as needed based on project requirements.
+7. No creation of summary documents.
+8. No comments in the code.
