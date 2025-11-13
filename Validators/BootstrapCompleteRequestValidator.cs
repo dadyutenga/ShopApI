@@ -31,8 +31,6 @@ public class BootstrapCompleteRequestValidator : AbstractValidator<BootstrapComp
         var hasEmail = !string.IsNullOrWhiteSpace(request.Email);
         var hasPassword = !string.IsNullOrWhiteSpace(request.Password);
 
-        if (!hasSetupToken && !hasEmail && !hasPassword)
-            return true;
 
         if (!string.IsNullOrWhiteSpace(request.SetupToken))
             return true;
