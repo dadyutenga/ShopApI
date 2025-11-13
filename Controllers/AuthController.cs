@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using ShopApI.DTOs;
 using ShopApI.Services;
@@ -58,6 +59,14 @@ public class AuthController : ControllerBase
             var envelope = await _authService.RequestCustomerOtpAsync(request, ipAddress);
             return Ok(new { envelope.ExpiresAt });
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(StatusCodes.Status429TooManyRequests, new { message = ex.Message });
+        }
         catch (Exception ex)
         {
             return BadRequest(new { message = ex.Message });
@@ -71,6 +80,14 @@ public class AuthController : ControllerBase
         {
             var envelope = await _authService.ResendCustomerOtpAsync(request);
             return Ok(new { envelope.ExpiresAt });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(StatusCodes.Status429TooManyRequests, new { message = ex.Message });
         }
         catch (Exception ex)
         {

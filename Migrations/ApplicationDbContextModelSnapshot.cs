@@ -85,7 +85,8 @@ namespace ShopApI.Migrations
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
+                        .HasColumnType("varchar(50)")
+                        .HasConversion<string>();
 
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()

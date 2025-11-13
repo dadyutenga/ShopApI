@@ -20,15 +20,39 @@ public static class BootstrapTokenHelper
         if (parts.Length != 2)
             return null;
 
-        var expected = ComputeSignature(parts[0], secret);
-        if (!CryptographicOperations.FixedTimeEquals(Convert.FromBase64String(parts[1]), Convert.FromBase64String(expected)))
-            return null;
+        try
+        {
+            var providedSignature = Convert.FromBase64String(parts[1]);
+            var expectedSignature = Convert.FromBase64String(ComputeSignature(parts[0], secret));
 
-        var payload = JsonSerializer.Deserialize<BootstrapTokenPayload>(Encoding.UTF8.GetString(Convert.FromBase64String(parts[0])));
-        if (payload == null || payload.ExpiresAt <= DateTimeOffset.UtcNow)
-            return null;
+            if (!CryptographicOperations.FixedTimeEquals(providedSignature, expectedSignature))
+                return null;
 
-        return payload;
+            var payloadBytes = Convert.FromBase64String(parts[0]);
+            var json = Encoding.UTF8.GetString(payloadBytes);
+            var payload = JsonSerializer.Deserialize<BootstrapTokenPayload>(json);
+
+            if (payload == null || payload.ExpiresAt <= DateTimeOffset.UtcNow)
+                return null;
+
+            return payload;
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+        catch (DecoderFallbackException)
+        {
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static string ComputeSignature(string data, string secret)
