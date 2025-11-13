@@ -1,11 +1,14 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using ShopApI.Data;
 using ShopApI.DTOs;
 using ShopApI.Events;
 using ShopApI.Helpers;
 using ShopApI.Models;
 using ShopApI.Enums;
+using ShopApI.Options;
 using System.Security.Claims;
+using System;
 
 namespace ShopApI.Services;
 
@@ -14,15 +17,20 @@ public class OAuthService : IOAuthService
     private readonly ApplicationDbContext _context;
     private readonly IEventPublisher _eventPublisher;
     private readonly ILogger<OAuthService> _logger;
+    private readonly string _emailVerificationSigningKey;
 
     public OAuthService(
         ApplicationDbContext context,
         IEventPublisher eventPublisher,
-        ILogger<OAuthService> logger)
+        ILogger<OAuthService> logger,
+        IOptions<EmailVerificationOptions> emailVerificationOptions)
     {
         _context = context;
         _eventPublisher = eventPublisher;
         _logger = logger;
+        _emailVerificationSigningKey = string.IsNullOrWhiteSpace(emailVerificationOptions.Value.SigningKey)
+            ? throw new InvalidOperationException("EMAIL_VERIFICATION_SIGNING_KEY is not configured.")
+            : emailVerificationOptions.Value.SigningKey;
     }
 
     public async Task<OAuthPendingResponse> HandleOAuthCallbackAsync(string provider, ClaimsPrincipal principal, string verificationBaseUrl)
@@ -80,12 +88,9 @@ public class OAuthService : IOAuthService
             await _context.SaveChangesAsync();
         }
 
-        var signingKey = Environment.GetEnvironmentVariable("EMAIL_VERIFICATION_SIGNING_KEY")
-            ?? throw new InvalidOperationException("EMAIL_VERIFICATION_SIGNING_KEY is not configured");
-
         var token = EmailVerificationTokenHelper.Sign(
             new EmailVerificationPayload(user.Id, provider, DateTimeOffset.UtcNow.AddHours(1)),
-            signingKey);
+            _emailVerificationSigningKey);
 
         var link = $"{verificationBaseUrl}?token={Uri.EscapeDataString(token)}";
 

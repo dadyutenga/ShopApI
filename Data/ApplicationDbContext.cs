@@ -25,7 +25,10 @@ public class ApplicationDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.Email).IsUnique();
             entity.Property(e => e.Email).IsRequired().HasMaxLength(255);
-            entity.Property(e => e.Role).IsRequired();
+            entity.Property(e => e.Role)
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasConversion<string>();
             entity.Property(e => e.Provider).HasMaxLength(32);
             entity.Property(e => e.ProviderId).HasMaxLength(128);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");

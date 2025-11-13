@@ -2,8 +2,11 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.MicrosoftAccount;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using ShopApI.DTOs;
+using ShopApI.Options;
 using ShopApI.Services;
+using System;
 
 namespace ShopApI.Controllers;
 
@@ -13,11 +16,24 @@ public class OAuthController : ControllerBase
 {
     private readonly IOAuthService _oauthService;
     private readonly ILogger<OAuthController> _logger;
+    private readonly string _verificationBaseUrl;
 
-    public OAuthController(IOAuthService oauthService, ILogger<OAuthController> logger)
+    public OAuthController(IOAuthService oauthService, ILogger<OAuthController> logger, IOptions<AppUrlOptions> appUrlOptions)
     {
         _oauthService = oauthService;
         _logger = logger;
+
+        var configuredBaseUrl = appUrlOptions.Value.BaseUrl?.Trim();
+
+        configuredBaseUrl = configuredBaseUrl.TrimEnd('/');
+
+        if (!Uri.TryCreate(configuredBaseUrl, UriKind.Absolute, out var parsedUri) ||
+            (parsedUri.Scheme != Uri.UriSchemeHttps && parsedUri.Scheme != Uri.UriSchemeHttp))
+        {
+            throw new InvalidOperationException("APP_BASE_URL must be an absolute HTTP or HTTPS URL.");
+        }
+
+        _verificationBaseUrl = $"{configuredBaseUrl}/api/auth/verify-email";
     }
 
     [HttpGet("google")]
@@ -86,6 +102,5 @@ public class OAuthController : ControllerBase
         return Ok(response);
     }
 
-    private string BuildVerificationBaseUrl()
-        => $"{Request.Scheme}://{Request.Host}/api/auth/verify-email";
+    private string BuildVerificationBaseUrl() => _verificationBaseUrl;
 }

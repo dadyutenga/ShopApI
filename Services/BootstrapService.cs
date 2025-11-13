@@ -5,6 +5,8 @@ using ShopApI.Enums;
 using ShopApI.Events;
 using ShopApI.Helpers;
 using ShopApI.Models;
+using System.Data;
+using System;
 
 namespace ShopApI.Services;
 
@@ -25,51 +27,64 @@ public class BootstrapService : IBootstrapService
 
     public async Task<BootstrapStatusResponse> GetStatusAsync()
     {
-        var hasAdmins = await _context.Users.AnyAsync(u => u.Role == UserRole.Admin);
         var locked = await IsLockedAsync();
+        if (locked)
+            return new BootstrapStatusResponse(false, "Bootstrap locked");
 
-        if (hasAdmins || locked)
-        {
-            return new BootstrapStatusResponse(false, hasAdmins ? "Admin user exists" : "Bootstrap locked");
-        }
+        var hasAdmins = await _context.Users.AnyAsync(u => u.Role == UserRole.Admin);
+        if (hasAdmins)
+            return new BootstrapStatusResponse(false, "Admin user exists");
 
         return new BootstrapStatusResponse(true, "Bootstrap allowed");
     }
 
     public async Task<UserDto> CompleteBootstrapAsync(BootstrapCompleteRequest request)
     {
-        var status = await GetStatusAsync();
-        if (!status.IsBootstrapAllowed)
+        var correlationId = Guid.NewGuid().ToString();
+        User? user = null;
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        try
         {
-            throw new InvalidOperationException(status.Reason);
+            var status = await GetStatusAsync();
+            if (!status.IsBootstrapAllowed)
+            {
+                throw new InvalidOperationException(status.Reason);
+            }
+
+            var (email, password) = ResolveCredentials(request);
+            user = new User
+            {
+                Email = email.Trim().ToLowerInvariant(),
+                PasswordHash = PasswordHasher.HashPassword(password),
+                Role = UserRole.Admin,
+                Provider = "bootstrap",
+                IsActive = true,
+                IsEmailVerified = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.Users.Add(user);
+            _context.AuditLogs.Add(new AuditLog
+            {
+                ActorId = user.Id,
+                TargetUserId = user.Id,
+                EventType = "bootstrap_admin_created",
+                Metadata = "{}"
+            });
+
+            await PersistLockAsync();
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
         }
 
-        var (email, password) = ResolveCredentials(request);
-        var user = new User
-        {
-            Email = email.Trim().ToLowerInvariant(),
-            PasswordHash = PasswordHasher.HashPassword(password),
-            Role = UserRole.Admin,
-            Provider = "bootstrap",
-            IsActive = true,
-            IsEmailVerified = true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        _context.Users.Add(user);
-        _context.AuditLogs.Add(new AuditLog
-        {
-            ActorId = user.Id,
-            TargetUserId = user.Id,
-            EventType = "bootstrap_admin_created",
-            Metadata = "{}"
-        });
-
-        await _context.SaveChangesAsync();
-        await PersistLockAsync();
-
-        var correlationId = Guid.NewGuid().ToString();
         await _eventPublisher.PublishAsync(new UserRegisteredEvent
         {
             UserId = user.Id,
@@ -125,13 +140,11 @@ public class BootstrapService : IBootstrapService
             setting.Value = "true";
             setting.UpdatedAt = DateTime.UtcNow;
         }
-
-        await _context.SaveChangesAsync();
     }
 
     private async Task<bool> IsLockedAsync()
     {
-        var setting = await _context.SystemSettings.FirstOrDefaultAsync(s => s.Key == BOOTSTRAP_LOCK_KEY);
+        var setting = await _context.SystemSettings.AsNoTracking().FirstOrDefaultAsync(s => s.Key == BOOTSTRAP_LOCK_KEY);
         return setting?.Value == "true";
     }
 }

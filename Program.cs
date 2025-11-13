@@ -14,7 +14,9 @@ using DotNetEnv;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using ShopApI.Validators;
+using System;
 using System.Linq;
+using ShopApI.Options;
 
 Env.Load();
 
@@ -73,6 +75,20 @@ builder.Services.AddSwaggerGen(c =>
 
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<RegisterRequestValidator>();
+
+var appBaseUrl = builder.Configuration["APP_BASE_URL"] ?? Environment.GetEnvironmentVariable("APP_BASE_URL");
+if (string.IsNullOrWhiteSpace(appBaseUrl))
+    throw new InvalidOperationException("APP_BASE_URL is not configured.");
+appBaseUrl = appBaseUrl.Trim();
+
+var emailVerificationSigningKey = builder.Configuration["EMAIL_VERIFICATION_SIGNING_KEY"]
+    ?? Environment.GetEnvironmentVariable("EMAIL_VERIFICATION_SIGNING_KEY");
+if (string.IsNullOrWhiteSpace(emailVerificationSigningKey))
+    throw new InvalidOperationException("EMAIL_VERIFICATION_SIGNING_KEY is not configured.");
+emailVerificationSigningKey = emailVerificationSigningKey.Trim();
+
+builder.Services.Configure<AppUrlOptions>(options => options.BaseUrl = appBaseUrl);
+builder.Services.Configure<EmailVerificationOptions>(options => options.SigningKey = emailVerificationSigningKey);
 
 var dbHost = Environment.GetEnvironmentVariable("DB_HOST") ?? "localhost";
 var dbPort = Environment.GetEnvironmentVariable("DB_PORT") ?? "3306";
