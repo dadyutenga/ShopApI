@@ -8,14 +8,14 @@ namespace ShopApI.Migrations
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.Sql("ALTER TABLE `Users` MODIFY `Role` varchar(50) NOT NULL;");
             migrationBuilder.Sql(@"UPDATE `Users` SET `Role` = CASE `Role`
-                WHEN '0' THEN 'Admin'
-                WHEN '1' THEN 'Manager'
-                WHEN '2' THEN 'Support'
-                WHEN '3' THEN 'Customer'
-                ELSE `Role`
+                WHEN 0 THEN 'Admin'
+                WHEN 1 THEN 'Manager'
+                WHEN 2 THEN 'Support'
+                WHEN 3 THEN 'Customer'
+                ELSE CAST(`Role` AS CHAR)
             END;");
+            migrationBuilder.Sql("ALTER TABLE `Users` MODIFY `Role` varchar(50) NOT NULL;");
         }
 
         protected override void Down(MigrationBuilder migrationBuilder)
