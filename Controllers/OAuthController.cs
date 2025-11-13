@@ -31,14 +31,14 @@ public class OAuthController : ControllerBase
     }
 
     [HttpGet("google/callback")]
-    public async Task<ActionResult<AuthResponse>> GoogleCallback()
+    public async Task<ActionResult<OAuthPendingResponse>> GoogleCallback()
     {
         var authenticateResult = await HttpContext.AuthenticateAsync(GoogleDefaults.AuthenticationScheme);
-        
+
         if (!authenticateResult.Succeeded)
             return Unauthorized(new { message = "Google authentication failed" });
 
-        var response = await _oauthService.HandleOAuthCallbackAsync("google", authenticateResult.Principal);
+        var response = await _oauthService.HandleOAuthCallbackAsync("google", authenticateResult.Principal, BuildVerificationBaseUrl());
         return Ok(response);
     }
 
@@ -53,14 +53,14 @@ public class OAuthController : ControllerBase
     }
 
     [HttpGet("github/callback")]
-    public async Task<ActionResult<AuthResponse>> GitHubCallback()
+    public async Task<ActionResult<OAuthPendingResponse>> GitHubCallback()
     {
         var authenticateResult = await HttpContext.AuthenticateAsync("GitHub");
-        
+
         if (!authenticateResult.Succeeded)
             return Unauthorized(new { message = "GitHub authentication failed" });
 
-        var response = await _oauthService.HandleOAuthCallbackAsync("github", authenticateResult.Principal);
+        var response = await _oauthService.HandleOAuthCallbackAsync("github", authenticateResult.Principal, BuildVerificationBaseUrl());
         return Ok(response);
     }
 
@@ -75,14 +75,17 @@ public class OAuthController : ControllerBase
     }
 
     [HttpGet("microsoft/callback")]
-    public async Task<ActionResult<AuthResponse>> MicrosoftCallback()
+    public async Task<ActionResult<OAuthPendingResponse>> MicrosoftCallback()
     {
         var authenticateResult = await HttpContext.AuthenticateAsync(MicrosoftAccountDefaults.AuthenticationScheme);
-        
+
         if (!authenticateResult.Succeeded)
             return Unauthorized(new { message = "Microsoft authentication failed" });
 
-        var response = await _oauthService.HandleOAuthCallbackAsync("microsoft", authenticateResult.Principal);
+        var response = await _oauthService.HandleOAuthCallbackAsync("microsoft", authenticateResult.Principal, BuildVerificationBaseUrl());
         return Ok(response);
     }
+
+    private string BuildVerificationBaseUrl()
+        => $"{Request.Scheme}://{Request.Host}/api/auth/verify-email";
 }

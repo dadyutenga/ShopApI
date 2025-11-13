@@ -8,11 +8,6 @@ public record RegisterRequest(
     UserRole Role = UserRole.Customer
 );
 
-public record VerifyOtpRequest(
-    string Email,
-    string Otp
-);
-
 public record LoginRequest(
     string Email,
     string Password
@@ -38,8 +33,17 @@ public record UserDto(
     Guid Id,
     string Email,
     string Role,
-    string? Provider,
-    DateTime CreatedAt
+    bool IsActive,
+    bool IsEmailVerified,
+    DateTime CreatedAt,
+    CustomerProfileDto? Customer
+);
+
+public record CustomerProfileDto(
+    string? PhoneNumber,
+    bool IsPhoneVerified,
+    bool IsEmailVerified,
+    bool TwoFactorEnabled
 );
 
 public record UpdateProfileRequest(
@@ -47,3 +51,34 @@ public record UpdateProfileRequest(
     string? CurrentPassword = null,
     string? NewPassword = null
 );
+
+public record BootstrapCompleteRequest(
+    string? Email,
+    string? Password,
+    string? SetupToken
+);
+
+public record BootstrapStatusResponse(
+    bool IsBootstrapAllowed,
+    string Reason
+);
+
+public record RequestOtpRequest(string Email);
+public record ResendOtpRequest(string Email);
+public record VerifyOtpRequest(string Email, string Otp);
+
+public record OtpEnvelope(Guid UserId, DateTime ExpiresAt);
+public record OtpIssuanceResult(string Otp, OtpEnvelope Envelope);
+
+public record AdminRegisterManagerRequest(string Email, string Password);
+public record AdminRegisterSupportRequest(string Email, string Password);
+public record AdminRegisterCustomerRequest(string Email, string? PhoneNumber, bool TwoFactorEnabled = false);
+
+public record UserQueryParameters(string? Email = null, UserRole? Role = null, bool? IsActive = null);
+
+public record UpdateUserRoleRequest(UserRole Role);
+public record UpdateUserStatusRequest(bool IsActive);
+public record SoftDeleteUserRequest(string? Reason);
+
+public record EmailVerificationRequest(string Token);
+public record OAuthPendingResponse(string Email, string VerificationLink);

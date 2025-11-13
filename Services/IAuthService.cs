@@ -5,7 +5,6 @@ namespace ShopApI.Services;
 public interface IAuthService
 {
     Task<RegisterResponse> RegisterAsync(RegisterRequest request);
-    Task<bool> VerifyEmailAsync(VerifyOtpRequest request);
     Task<AuthResponse> LoginAsync(LoginRequest request);
     Task<AuthResponse> RefreshTokenAsync(RefreshTokenRequest request);
     Task<UserDto?> GetUserByIdAsync(Guid userId);
@@ -14,4 +13,8 @@ public interface IAuthService
     Task<bool> IsAccountLockedAsync(string email);
     Task IncrementFailedLoginAsync(string email);
     Task ResetFailedLoginAsync(string email);
+    Task<OtpEnvelope> RequestCustomerOtpAsync(RequestOtpRequest request, string ipAddress);
+    Task<OtpEnvelope> ResendCustomerOtpAsync(ResendOtpRequest request);
+    Task<AuthResponse> VerifyCustomerOtpAsync(VerifyOtpRequest request);
+    Task<bool> VerifyEmailFromTokenAsync(string token);
 }
