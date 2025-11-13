@@ -25,9 +25,6 @@ public class OAuthController : ControllerBase
 
         var configuredBaseUrl = appUrlOptions.Value.BaseUrl?.Trim();
 
-        if (string.IsNullOrWhiteSpace(configuredBaseUrl))
-            throw new InvalidOperationException("APP_BASE_URL is not configured.");
-
         configuredBaseUrl = configuredBaseUrl.TrimEnd('/');
 
         if (!Uri.TryCreate(configuredBaseUrl, UriKind.Absolute, out var parsedUri) ||
