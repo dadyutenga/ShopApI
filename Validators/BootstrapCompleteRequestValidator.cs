@@ -27,9 +27,16 @@ public class BootstrapCompleteRequestValidator : AbstractValidator<BootstrapComp
 
     private static bool HasValidPayload(BootstrapCompleteRequest request)
     {
-        if (!string.IsNullOrWhiteSpace(request.SetupToken))
+        var hasSetupToken = !string.IsNullOrWhiteSpace(request.SetupToken);
+        var hasEmail = !string.IsNullOrWhiteSpace(request.Email);
+        var hasPassword = !string.IsNullOrWhiteSpace(request.Password);
+
+        if (!hasSetupToken && !hasEmail && !hasPassword)
+            return false;
+
+        if (hasSetupToken)
             return true;
 
-        return !string.IsNullOrWhiteSpace(request.Email) && !string.IsNullOrWhiteSpace(request.Password);
+        return hasEmail && hasPassword;
     }
 }

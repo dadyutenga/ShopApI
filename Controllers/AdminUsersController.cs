@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using ShopApI.DTOs;
 using ShopApI.Services;
 using System.Security.Claims;
+using System;
 
 namespace ShopApI.Controllers;
 
@@ -59,5 +60,15 @@ public class AdminUsersController : ControllerBase
     }
 
     private Guid GetActorId()
-        => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+    {
+        var identifier = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(identifier))
+            throw new UnauthorizedAccessException("Authenticated user identifier is missing.");
+
+        if (!Guid.TryParse(identifier, out var actorId))
+            throw new FormatException("Authenticated user identifier is not a valid GUID.");
+
+        return actorId;
+    }
 }
