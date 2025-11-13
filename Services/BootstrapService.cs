@@ -85,9 +85,6 @@ public class BootstrapService : IBootstrapService
             throw;
         }
 
-        if (user == null)
-            throw new InvalidOperationException("Bootstrap user creation failed.");
-
         await _eventPublisher.PublishAsync(new UserRegisteredEvent
         {
             UserId = user.Id,
